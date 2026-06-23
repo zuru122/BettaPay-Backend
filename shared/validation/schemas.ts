@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { validateStellarAddress } from "@bettapay/stellar-utils";
 
 // Entity schemas
 export const idSchema = z.string().min(1);
@@ -166,10 +167,27 @@ export function safeParseEvent(raw: unknown) {
 // ─── Request Body Schemas (used by API Gateway route handlers) ────────────────
 
 export const CreateMerchantBody = z.object({
-  id: z.string().min(1, 'id is required'),
-  name: z.string().min(1, 'name is required'),
-  ownerId: z.string().optional(),
-  settings: z.record(z.unknown()).optional(),
+  id: z.string().min(1, "id is required"),
+  name: z
+    .string()
+    .min(3, "name must be at least 3 characters")
+    .max(100, "name cannot exceed 100 characters"),
+  ownerId: z
+    .string()
+    .optional()
+    .refine(
+      (val) => val === undefined || validateStellarAddress(val),
+      "ownerId must be a valid Stellar address",
+    ),
+  settings: z
+    .record(z.unknown())
+    .optional()
+    .refine((val) => {
+      if (val === undefined) return true;
+      const keys = Object.keys(val);
+      if (keys.length > 50) return false;
+      return JSON.stringify(val).length <= 10 * 1024;
+    }, "settings must contain at most 50 keys and be at most 10KB when serialized"),
 });
 
 export const CreatePaymentBody = z.object({
